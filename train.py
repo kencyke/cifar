@@ -13,8 +13,18 @@ from chainer.optimizer import WeightDecay
 import network
 
 def main():
-	parser = argparse.ArgumentParser(description='Chainer CIFAR example:')
+	parser = argparse.ArgumentParser(description='Chainer CIFAR trainer:')
+	parser.add_argument('--gpu', '-g', type=int, default=0,
+                        help='GPU ID (negative value indicates CPU)')
+	parser.add_argument('--batchsize', '-b', type=int, default=64,
+                        help='Number of images in each mini-batch')
+	parser.add_argument('--epoch', '-e', type=int, default=100,
+                        help='Number of sweeps over the dataset to train')
 	args = parser.parse_args()
+
+	print('GPU: {}'.format(args.gpu))
+	print('Batchsize: {}'.format(args.batchsize))
+	print('Epoch: {}'.format(args.epoch))
 
 	train, test = get_cifar10()
 	train_x = [x[0][None, :, :, :] for x in train]
@@ -33,14 +43,22 @@ def main():
 	train_count = len(train_x)
 	test_count = len(test_x)
 
+	print('#train: {}'.format(train_count))
+	print('#test: {}'.format(test_count))
+
 	model = network.CNN()
+	if args.gpu >= 0:
+		chainer.cuda.get_device_from_id(args.gpu).use()
+		model.to_gpu()
 
 	optimizer = optimizers.Adam()
 	optimizer.setup(model)
 	optimizer.add_hook(WeightDecay(5e-4))
 
-	maxepoch = 100
-	batchsize = 50
+	xp = cuda.cupy if args.gpu >= 0 else np
+	batchsize = args.batchsize
+	maxepoch = args.epoch
+
 	train_loss = []
 	train_acc = []
 	test_loss = []
@@ -49,38 +67,42 @@ def main():
 	start_time = time.clock()
 
 	for epoch in range(maxepoch):
-		order = np.random.permutation(train_count)
+		indexes = np.random.permutation(train_count)
 		sum_train_loss = 0
 		sum_train_acc = 0
 		for i in range(0, train_count, batchsize):
-			mbx = model.xp.vstack([model.xp.asarray(train_x[j]) for j in order[i: i+batchsize]])
-			mbt = model.xp.asarray([train_t[j] for j in order[i: i+batchsize]])
+			mbx = model.xp.vstack([model.xp.asarray(train_x[j]) for j in indexes[i : i + batchsize]])
+			mbt = model.xp.asarray([train_t[j] for j in indexes[i : i + batchsize]])
 			y = model(mbx, train=True)
 			loss = F.softmax_cross_entropy(y, mbt)
 			acc = F.accuracy(y, mbt)
 			model.zerograds()
 			loss.backward()
 			optimizer.update()
-			sum_train_loss += float(loss.data) * len(mbx)
-			sum_train_acc += float(acc.data) * len(mbx)
-			print('epoch:{0} i_train:{1} loss:{2} accuracy:{3}'.format(epoch, i, float(loss.data), float(acc.data)))
+			sum_train_loss += float(cuda.to_cpu(loss.data)) * len(mbx)
+			sum_train_acc += float(cuda.to_cpu(acc.data)) * len(mbx)
+			print('epoch:{0} i_train:{1} loss:{2} accuracy:{3}'.format(epoch, i, float(cuda.to_cpu(loss.data)), float(cuda.to_cpu(acc.data))))
 		train_loss.append(sum_train_loss / train_count)
 		train_acc.append(sum_train_acc / train_count)
 
 		sum_test_loss = 0
 		sum_test_acc = 0
 		for i in range(0, test_count, batchsize):
-			mbx = model.xp.vstack([model.xp.asarray(x) for j in test_x[i: i+batchsize]])
-			mbt = model.xp.asarray(test_t[i: i+batchsize], dtype='int32')
+			mbx = model.xp.vstack([model.xp.asarray(x) for j in test_x[i : i + batchsize]])
+			mbt = model.xp.asarray(test_t[i : i + batchsize], dtype='int32')
 			y = model(mbx, train=False)
 			loss = F.softmax_cross_entropy(y, mbt)
 			acc = F.accuracy(y, mbt)
-			sum_test_loss += float(loss.data) * len(mbx)
-			sum__test_acc += float(acc.data) * len(mbx)
-			print('epoch:{0} i_test:{1} loss:{2} accuracy:{3}'.format(epoch, i, float(loss.data), float(acc.data)))
+			sum_test_loss += float(cuda.to_cpu(loss.data)) * len(mbx)
+			sum__test_acc += float(cuda.to_cpu(acc.data)) * len(mbx)
+			print('epoch:{0} i_test:{1} loss:{2} accuracy:{3}'.format(epoch, i, float(cuda.to_cpu(loss.data)), float(cuda.to_cpu(acc.data))))
 		test_loss.append(sum_test_loss / test_count)
 		test_acc.append(sum_test_acc / test_count)
 
+	model.to_cpu()
+	end_time = time.clock()
+	print('total time:', end_time - start_time)
+	
 	print('save the model')
 	serializers.save_npz('model', model)
 	print('save the optimizer')
@@ -90,9 +112,6 @@ def main():
 		dict = {'train_loss' : train_loss, 'train_acc' : train_acc,
 				'test_loss' : test_loss, 'test_acc' : test_acc}
 		pickle.Pickler(f).dump(dict)
-
-	end_time = time.clock()
-	print('total time:', end_time - start_time)
 
 if __name__ == '__main__':
 	main()
