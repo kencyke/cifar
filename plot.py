@@ -35,4 +35,4 @@ acc.set_xlabel('Epoch')
 acc.set_ylabel('Accuracy')
 acc.legend(loc="lower right")
 
-fig.show()
+plt.show()
