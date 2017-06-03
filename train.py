@@ -67,12 +67,12 @@ def main():
 	start_time = time.clock()
 
 	for epoch in range(maxepoch):
-		indexes = np.random.permutation(train_count)
+		train_idx = np.random.permutation(train_count)
 		sum_train_loss = 0
 		sum_train_acc = 0
 		for i in range(0, train_count, batchsize):
-			mbx = model.xp.vstack([model.xp.asarray(train_x[j]) for j in indexes[i : i + batchsize]])
-			mbt = model.xp.asarray([train_t[j] for j in indexes[i : i + batchsize]])
+			mbx = model.xp.vstack([model.xp.asarray(train_x[j]) for j in train_idx[i : i + batchsize]])
+			mbt = model.xp.asarray([train_t[j] for j in train_idx[i : i + batchsize]])
 			y = model(mbx, train=True)
 			loss = F.softmax_cross_entropy(y, mbt)
 			acc = F.accuracy(y, mbt)
@@ -85,16 +85,17 @@ def main():
 		train_loss.append(sum_train_loss / train_count)
 		train_acc.append(sum_train_acc / train_count)
 
+		test_idx = range(test_count)
 		sum_test_loss = 0
 		sum_test_acc = 0
 		for i in range(0, test_count, batchsize):
-			mbx = model.xp.vstack([model.xp.asarray(x) for j in test_x[i : i + batchsize]])
-			mbt = model.xp.asarray(test_t[i : i + batchsize], dtype='int32')
+			mbx = model.xp.vstack([model.xp.asarray(test_x[j]) for j in test_idx[i : i + batchsize]])
+			mbt = model.xp.asarray([test_t[j] for j in test_idx[i : i + batchsize]])
 			y = model(mbx, train=False)
 			loss = F.softmax_cross_entropy(y, mbt)
 			acc = F.accuracy(y, mbt)
 			sum_test_loss += float(cuda.to_cpu(loss.data)) * len(mbx)
-			sum__test_acc += float(cuda.to_cpu(acc.data)) * len(mbx)
+			sum_test_acc += float(cuda.to_cpu(acc.data)) * len(mbx)
 			print('epoch:{0} i_test:{1} loss:{2} accuracy:{3}'.format(epoch, i, float(cuda.to_cpu(loss.data)), float(cuda.to_cpu(acc.data))))
 		test_loss.append(sum_test_loss / test_count)
 		test_acc.append(sum_test_acc / test_count)
@@ -102,7 +103,7 @@ def main():
 	model.to_cpu()
 	end_time = time.clock()
 	print('total time:', end_time - start_time)
-	
+
 	print('save the model')
 	serializers.save_npz('model', model)
 	print('save the optimizer')
