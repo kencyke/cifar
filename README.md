@@ -1,9 +1,8 @@
-# CIFAR-10 Classification
-This is an example of a convolutional neural network for image classification using CIFAR-10 dataset.  
-If you do not know about CIFAR-10, please see https://www.cs.toronto.edu/~kriz/cifar.html .  
-# Validation
-I checked these codes running in Bitfusion Ubuntu 14 Chainer on June 4, 2017 (running time: 3986.784109 seconds).  
-To run them, you might need to change from
+# cifar
+This is an python implementation of [cifar-10](https://www.cs.toronto.edu/~kriz/cifar.html).
+## Validation
+These codes are verified to run 3986.784109 seconds in Bitfusion Ubuntu 14 Chainer on June 4, 2017.   
+If you are using a older version of Chainer , it might be necessary to change from
 ```python:train.py
 chainer.cuda.get_device_from_id().use()
 ```
